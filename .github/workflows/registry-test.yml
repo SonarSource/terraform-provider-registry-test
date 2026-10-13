@@ -29,16 +29,16 @@ jobs:
             development/kv/data/sign passphrase | GPG_PASSPHRASE ;
       - name: Build, sign, and verify
         env:
-          KEY_ID: ${{ steps.secrets.outputs.KEY_ID }}
-          GPG_KEY: ${{ steps.secrets.outputs.GPG_KEY }}
-          GPG_PASSPHRASE: ${{ steps.secrets.outputs.GPG_PASSPHRASE }}
+          KEY_ID: ${{ fromJSON(steps.secrets.outputs.vault).KEY_ID }}
+          GPG_KEY: ${{ fromJSON(steps.secrets.outputs.vault).GPG_KEY }}
+          GPG_PASSPHRASE: ${{ fromJSON(steps.secrets.outputs.vault).GPG_PASSPHRASE }}
           VERSION: 0.0.1-alpha.1
           NAME: terraform-provider-registry-test
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "${KEY_ID}" = "47B01975"
           echo "key_id=${KEY_ID}"
+          test "${KEY_ID}" = "47B01975"
 
           gnupg="$(mktemp -d)"
           chmod 700 "${gnupg}"
@@ -48,7 +48,7 @@ jobs:
           printf '%s\n' "${listing}"
           printf '%s\n' "${listing}" | grep -q 'sec#'
           test "$(printf '%s\n' "${listing}" | grep -c '^ssb')" -eq 1
-          printf '%s\n' "${listing}" | grep -q '06D0369BE1D0B06997DA66E8C33B56C147B01975'
+          printf '%s\n' "${listing}" | tr -d ' ' | grep -q '06D0369BE1D0B06997DA66E8C33B56C147B01975'
 
           bash scripts/package-release.sh
           sums="dist/${NAME}_${VERSION}_SHA256SUMS"
@@ -97,9 +97,9 @@ jobs:
             development/kv/data/sign passphrase | GPG_PASSPHRASE ;
       - name: Build and sign
         env:
-          KEY_ID: ${{ steps.secrets.outputs.KEY_ID }}
-          GPG_KEY: ${{ steps.secrets.outputs.GPG_KEY }}
-          GPG_PASSPHRASE: ${{ steps.secrets.outputs.GPG_PASSPHRASE }}
+          KEY_ID: ${{ fromJSON(steps.secrets.outputs.vault).KEY_ID }}
+          GPG_KEY: ${{ fromJSON(steps.secrets.outputs.vault).GPG_KEY }}
+          GPG_PASSPHRASE: ${{ fromJSON(steps.secrets.outputs.vault).GPG_PASSPHRASE }}
           VERSION: 0.0.1-alpha.1
           NAME: terraform-provider-registry-test
         run: |
