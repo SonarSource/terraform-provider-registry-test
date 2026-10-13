@@ -31,13 +31,15 @@ jobs:
           KEY_ID: ${{ fromJSON(steps.secrets.outputs.vault).KEY_ID }}
           GPG_KEY: ${{ fromJSON(steps.secrets.outputs.vault).GPG_KEY }}
           GPG_PASSPHRASE: ${{ fromJSON(steps.secrets.outputs.vault).GPG_PASSPHRASE }}
-          VERSION: 0.0.1-alpha.1
+          VERSION: 0.0.1-alpha.2
           NAME: terraform-provider-registry-test
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           echo "key_id=${KEY_ID}"
           test "${KEY_ID}" = "47B01975"
+          tags_before="$(git ls-remote --tags origin | wc -l | tr -d ' ')"
+          releases_before="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq 'length')"
 
           gnupg="$(mktemp -d)"
           chmod 700 "${gnupg}"
@@ -66,8 +68,8 @@ jobs:
           GNUPGHOME="${public}" gpg --batch --import "${armor}"
           GNUPGHOME="${public}" gpg --batch --verify "${sig}" "${sums}"
 
-          test "$(git ls-remote --tags origin | wc -l | tr -d ' ')" = "0"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq 'length')" = "0"
+          test "$(git ls-remote --tags origin | wc -l | tr -d ' ')" = "${tags_before}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq 'length')" = "${releases_before}"
       - uses: actions/upload-artifact@v4
         with:
           name: registry-test-assets
@@ -98,7 +100,7 @@ jobs:
           KEY_ID: ${{ fromJSON(steps.secrets.outputs.vault).KEY_ID }}
           GPG_KEY: ${{ fromJSON(steps.secrets.outputs.vault).GPG_KEY }}
           GPG_PASSPHRASE: ${{ fromJSON(steps.secrets.outputs.vault).GPG_PASSPHRASE }}
-          VERSION: 0.0.1-alpha.1
+          VERSION: 0.0.1-alpha.2
           NAME: terraform-provider-registry-test
         run: |
           set -euo pipefail
@@ -127,10 +129,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "v0.0.1-alpha.1" \
+          gh release create "v0.0.1-alpha.2" \
             --repo "${GITHUB_REPOSITORY}" \
             --target "${GITHUB_SHA}" \
-            --title "v0.0.1-alpha.1" \
+            --title "v0.0.1-alpha.2" \
             --notes "Prerelease used to test the sonarsource Terraform Registry namespace." \
             --prerelease \
             dist/*

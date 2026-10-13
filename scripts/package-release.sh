@@ -2,7 +2,7 @@
 # Build the two release archives and the checksum file. Signing happens in CI.
 set -euo pipefail
 
-VERSION="${VERSION:-0.0.1-alpha.1}"
+VERSION="${VERSION:-0.0.1-alpha.2}"
 NAME="terraform-provider-registry-test"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${ROOT}/dist"
