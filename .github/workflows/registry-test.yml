@@ -1,0 +1,138 @@
+name: Registry test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Read the signing key
+        id: secrets
+        uses: SonarSource/vault-action-wrapper@a7fa5fd4a4e4e0f2593f6137c0812cac196cf4ce
+        with:
+          url: https://vault.sonar.build
+          exportToken: true
+          secrets: |
+            development/kv/data/sign key_id | KEY_ID ;
+            development/kv/data/sign key | GPG_KEY ;
+            development/kv/data/sign passphrase | GPG_PASSPHRASE ;
+      - name: Build, sign, and verify
+        env:
+          KEY_ID: ${{ steps.secrets.outputs.KEY_ID }}
+          GPG_KEY: ${{ steps.secrets.outputs.GPG_KEY }}
+          GPG_PASSPHRASE: ${{ steps.secrets.outputs.GPG_PASSPHRASE }}
+          VERSION: 0.0.1-alpha.1
+          NAME: terraform-provider-registry-test
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "${KEY_ID}" = "47B01975"
+          echo "key_id=${KEY_ID}"
+
+          gnupg="$(mktemp -d)"
+          chmod 700 "${gnupg}"
+          export GNUPGHOME="${gnupg}"
+          printf '%s\n' "${GPG_KEY}" | gpg --batch --import
+          listing="$(gpg --batch --list-secret-keys --with-fingerprint)"
+          printf '%s\n' "${listing}"
+          printf '%s\n' "${listing}" | grep -q 'sec#'
+          test "$(printf '%s\n' "${listing}" | grep -c '^ssb')" -eq 1
+          printf '%s\n' "${listing}" | grep -q '06D0369BE1D0B06997DA66E8C33B56C147B01975'
+
+          bash scripts/package-release.sh
+          sums="dist/${NAME}_${VERSION}_SHA256SUMS"
+          sig="${sums}.sig"
+          printf '%s\n' "${GPG_PASSPHRASE}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --local-user '47B01975!' --detach-sign --output "${sig}" "${sums}"
+          if grep -q 'BEGIN PGP SIGNATURE' "${sig}"; then
+            echo "signature must be binary, not ASCII-armored" >&2
+            exit 1
+          fi
+
+          public="$(mktemp -d)"
+          chmod 700 "${public}"
+          armor="$(mktemp)"
+          curl -fsSL -g 'https://registry.terraform.io/v2/gpg-keys?filter[namespace]=sonarsource' \
+            | jq -r '.data[] | select(.attributes["key-id"]=="1DB198F93525EC1A") | .attributes["ascii-armor"]' > "${armor}"
+          GNUPGHOME="${public}" gpg --batch --import "${armor}"
+          GNUPGHOME="${public}" gpg --batch --verify "${sig}" "${sums}"
+
+          test "$(git ls-remote --tags origin | wc -l | tr -d ' ')" = "0"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq 'length')" = "0"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: registry-test-assets
+          path: dist/*
+
+  release:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Read the signing key
+        id: secrets
+        uses: SonarSource/vault-action-wrapper@a7fa5fd4a4e4e0f2593f6137c0812cac196cf4ce
+        with:
+          url: https://vault.sonar.build
+          exportToken: true
+          secrets: |
+            development/kv/data/sign key_id | KEY_ID ;
+            development/kv/data/sign key | GPG_KEY ;
+            development/kv/data/sign passphrase | GPG_PASSPHRASE ;
+      - name: Build and sign
+        env:
+          KEY_ID: ${{ steps.secrets.outputs.KEY_ID }}
+          GPG_KEY: ${{ steps.secrets.outputs.GPG_KEY }}
+          GPG_PASSPHRASE: ${{ steps.secrets.outputs.GPG_PASSPHRASE }}
+          VERSION: 0.0.1-alpha.1
+          NAME: terraform-provider-registry-test
+        run: |
+          set -euo pipefail
+          test "${KEY_ID}" = "47B01975"
+          gnupg="$(mktemp -d)"
+          chmod 700 "${gnupg}"
+          export GNUPGHOME="${gnupg}"
+          printf '%s\n' "${GPG_KEY}" | gpg --batch --import
+          bash scripts/package-release.sh
+          sums="dist/${NAME}_${VERSION}_SHA256SUMS"
+          sig="${sums}.sig"
+          printf '%s\n' "${GPG_PASSPHRASE}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --local-user '47B01975!' --detach-sign --output "${sig}" "${sums}"
+          if grep -q 'BEGIN PGP SIGNATURE' "${sig}"; then
+            echo "signature must be binary, not ASCII-armored" >&2
+            exit 1
+          fi
+          public="$(mktemp -d)"
+          chmod 700 "${public}"
+          armor="$(mktemp)"
+          curl -fsSL -g 'https://registry.terraform.io/v2/gpg-keys?filter[namespace]=sonarsource' \
+            | jq -r '.data[] | select(.attributes["key-id"]=="1DB198F93525EC1A") | .attributes["ascii-armor"]' > "${armor}"
+          GNUPGHOME="${public}" gpg --batch --import "${armor}"
+          GNUPGHOME="${public}" gpg --batch --verify "${sig}" "${sums}"
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "v0.0.1-alpha.1" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "v0.0.1-alpha.1" \
+            --notes "Prerelease used to test the sonarsource Terraform Registry namespace." \
+            --prerelease \
+            dist/*

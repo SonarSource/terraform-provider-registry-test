@@ -1,0 +1,3 @@
+dist/
+*.zip
+terraform-provider-registry-test
