@@ -22,7 +22,6 @@ jobs:
         uses: SonarSource/vault-action-wrapper@a7fa5fd4a4e4e0f2593f6137c0812cac196cf4ce
         with:
           url: https://vault.sonar.build
-          exportToken: true
           secrets: |
             development/kv/data/sign key_id | KEY_ID ;
             development/kv/data/sign key | GPG_KEY ;
@@ -44,7 +43,7 @@ jobs:
           chmod 700 "${gnupg}"
           export GNUPGHOME="${gnupg}"
           printf '%s\n' "${GPG_KEY}" | gpg --batch --import
-          listing="$(gpg --batch --list-secret-keys --with-fingerprint)"
+          listing="$(gpg --batch --list-secret-keys --with-subkey-fingerprint --keyid-format long)"
           printf '%s\n' "${listing}"
           printf '%s\n' "${listing}" | grep -q 'sec#'
           test "$(printf '%s\n' "${listing}" | grep -c '^ssb')" -eq 1
@@ -90,7 +89,6 @@ jobs:
         uses: SonarSource/vault-action-wrapper@a7fa5fd4a4e4e0f2593f6137c0812cac196cf4ce
         with:
           url: https://vault.sonar.build
-          exportToken: true
           secrets: |
             development/kv/data/sign key_id | KEY_ID ;
             development/kv/data/sign key | GPG_KEY ;
