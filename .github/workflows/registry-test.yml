@@ -23,9 +23,9 @@ jobs:
         with:
           url: https://vault.sonar.build
           secrets: |
-            development/kv/data/sign key_id | KEY_ID ;
-            development/kv/data/sign key | GPG_KEY ;
-            development/kv/data/sign passphrase | GPG_PASSPHRASE ;
+            development/kv/data/sign/terraform key_id | KEY_ID ;
+            development/kv/data/sign/terraform key | GPG_KEY ;
+            development/kv/data/sign/terraform passphrase | GPG_PASSPHRASE ;
       - name: Build, sign, and verify
         env:
           KEY_ID: ${{ fromJSON(steps.secrets.outputs.vault).KEY_ID }}
@@ -37,7 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "key_id=${KEY_ID}"
-          test "${KEY_ID}" = "47B01975"
+          test "${KEY_ID}" = "9582347C"
           tags_before="$(git ls-remote --tags origin | wc -l | tr -d ' ')"
           releases_before="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq 'length')"
 
@@ -49,12 +49,12 @@ jobs:
           printf '%s\n' "${listing}"
           printf '%s\n' "${listing}" | grep -q 'sec#'
           test "$(printf '%s\n' "${listing}" | grep -c '^ssb')" -eq 1
-          printf '%s\n' "${listing}" | tr -d ' ' | grep -q '06D0369BE1D0B06997DA66E8C33B56C147B01975'
+          printf '%s\n' "${listing}" | tr -d ' ' | grep -q '4D2E30BAA0D0987C7602EB1F2BF0BAFD9582347C'
 
           bash scripts/package-release.sh
           sums="dist/${NAME}_${VERSION}_SHA256SUMS"
           sig="${sums}.sig"
-          printf '%s\n' "${GPG_PASSPHRASE}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --local-user '47B01975!' --detach-sign --output "${sig}" "${sums}"
+          printf '%s\n' "${GPG_PASSPHRASE}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --local-user '9582347C!' --detach-sign --output "${sig}" "${sums}"
           if grep -q 'BEGIN PGP SIGNATURE' "${sig}"; then
             echo "signature must be binary, not ASCII-armored" >&2
             exit 1
@@ -92,9 +92,9 @@ jobs:
         with:
           url: https://vault.sonar.build
           secrets: |
-            development/kv/data/sign key_id | KEY_ID ;
-            development/kv/data/sign key | GPG_KEY ;
-            development/kv/data/sign passphrase | GPG_PASSPHRASE ;
+            development/kv/data/sign/terraform key_id | KEY_ID ;
+            development/kv/data/sign/terraform key | GPG_KEY ;
+            development/kv/data/sign/terraform passphrase | GPG_PASSPHRASE ;
       - name: Build and sign
         env:
           KEY_ID: ${{ fromJSON(steps.secrets.outputs.vault).KEY_ID }}
@@ -104,7 +104,7 @@ jobs:
           NAME: terraform-provider-registry-test
         run: |
           set -euo pipefail
-          test "${KEY_ID}" = "47B01975"
+          test "${KEY_ID}" = "9582347C"
           gnupg="$(mktemp -d)"
           chmod 700 "${gnupg}"
           export GNUPGHOME="${gnupg}"
@@ -112,7 +112,7 @@ jobs:
           bash scripts/package-release.sh
           sums="dist/${NAME}_${VERSION}_SHA256SUMS"
           sig="${sums}.sig"
-          printf '%s\n' "${GPG_PASSPHRASE}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --local-user '47B01975!' --detach-sign --output "${sig}" "${sums}"
+          printf '%s\n' "${GPG_PASSPHRASE}" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --local-user '9582347C!' --detach-sign --output "${sig}" "${sums}"
           if grep -q 'BEGIN PGP SIGNATURE' "${sig}"; then
             echo "signature must be binary, not ASCII-armored" >&2
             exit 1
